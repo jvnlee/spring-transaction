@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
@@ -142,4 +143,26 @@ public class BasicTxPropagationTest {
          그런데 이 경우, 커밋을 기대했는데도 실제로는 롤백되었다는 것을 명확히 고지해줄 필요가 있어 스프링이 UnexpectedRollbackException을 던져줌.
          */
     }
+
+    @DisplayName("REQUIRES_NEW로 생성한 내부 트랜잭션 롤백")
+    @Test
+    void innerRollbackWithRequiresNew() {
+        log.info("외부 트랜잭션 시작");
+        TransactionStatus outerStatus = transactionManager.getTransaction(new DefaultTransactionAttribute());
+        log.info("outer: 새로 시작된 트랜잭션인가?={}", outerStatus.isNewTransaction());
+
+        log.info("내부 트랜잭션 시작");
+        DefaultTransactionAttribute definition = new DefaultTransactionAttribute();
+        definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW); // 이전에 시작된 트랜잭션에 참여하지 않고 새로운 트랜잭션을 만들겠다
+        TransactionStatus innerStatus = transactionManager.getTransaction(definition); // 외부 트랜잭션과 완전히 다른 새로운 DB 커넥션을 사용해서 트랜잭션 시작
+        log.info("inner: 새로 시작된 트랜잭션인가?={}", innerStatus.isNewTransaction());
+
+        log.info("내부 트랜잭션 커밋");
+        transactionManager.rollback(innerStatus);
+
+        log.info("외부 트랜잭션 커밋");
+        transactionManager.commit(outerStatus);
+    }
+
+
 }
